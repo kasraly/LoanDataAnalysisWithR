@@ -1,0 +1,534 @@
+---
+title: "P4 Explore and Summarize Data - Prosper Loan Data"
+output: html_document
+---
+
+This report is an analysis of the loan data from prosper. The prosper loan data (pld) consists of data for more than 110,000 loans with 81 variables decribing each loan.
+
+```{r include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
+```
+
+```{r Initialization}
+library(ggplot2)
+library(dplyr)
+library(GGally)
+library(RColorBrewer)
+library(gridExtra)
+
+setwd('C:/Users/Kasra/OneDrive/Documents/Udacity/Data Analyst/P4 Explore and Summarize Data')
+```
+
+# Prosper Loan Data
+
+```{r Read The Data}
+pld <- read.csv('prosperLoanData.csv')
+#str(pld)
+```
+
+```{r Fix data types }
+pld$ListingCreationDate = as.Date(pld$ListingCreationDate)
+pld$CreditGrade = ordered(pld$CreditGrade, 
+                         levels = c('HR', 'E', 'D', 'C', 'B', 'A', 'AA'))
+pld$ClosedDate = as.Date(pld$ClosedDate)
+pld$ProsperRating..Alpha. = ordered(pld$ProsperRating..Alpha., 
+                         levels = c('HR', 'E', 'D', 'C', 'B', 'A', 'AA'))
+# pld <- transform(pld, IsBorrowerHomeowner = 
+#                    ifelse(IsBorrowerHomeowner == 'True', TRUE, FALSE))
+pld$DateCreditPulled = as.Date(pld$DateCreditPulled)
+pld$FirstRecordedCreditLine = as.Date(pld$FirstRecordedCreditLine)
+pld$IncomeRange = ordered(pld$IncomeRange, 
+                         levels = c('Not employed', '$0', '$1-24,999',
+                                    '$25,000-49,999', '$50,000-74,999', 
+                                    '$75,000-99,999', '$100,000+', 
+                                    'Not displayed'))
+pld$ListingCategory = 
+  factor(pld$ListingCategory..numeric., levels = seq(0,20),
+      labels = c('Not Available', 'Debt Consolidation', 'Home Improvement',
+                 'Business', 'Personal Loan', 'Student Use', 'Auto',
+                 'Other', 'Baby&Adoption', 'Boat', 'Cosmetic Procedure',
+                 'Engagement Ring', 'Green Loans', 'Household Expenses', 
+                 'Large Purchases', 'Medical/Dental', 'Motorcycle', 'RV',
+                 'Taxes', 'Vacation', 'Wedding Loans'))
+  
+
+pld$LoanOriginationDate = as.Date(pld$LoanOriginationDate)
+dateQuarterBreaks = c('Q4 2005', 'Q1 2006', 'Q2 2006', 'Q3 2006', 'Q4 2006',
+                      'Q1 2007', 'Q2 2007', 'Q3 2007', 'Q4 2007', 'Q1 2008',
+                      'Q2 2008', 'Q3 2008', 'Q4 2008', 'Q1 2009', 'Q2 2009',
+                      'Q3 2009', 'Q4 2009', 'Q1 2010', 'Q2 2010', 'Q3 2010',
+                      'Q4 2010', 'Q1 2011', 'Q2 2011', 'Q3 2011', 'Q4 2011',
+                      'Q1 2012', 'Q2 2012', 'Q3 2012', 'Q4 2012', 'Q1 2013',
+                      'Q2 2013', 'Q3 2013', 'Q4 2013', 'Q1 2014', 'Q2 2014')
+pld$LoanOriginationQuarter = ordered(pld$LoanOriginationQuarter, 
+                                    dateQuarterBreaks)
+
+str(pld)
+
+creditBreaks = c(0, 360, seq(420, 880, 20), 900)
+pld <- transform(pld, CreditScoreBucket = 
+                   cut((CreditScoreRangeUpper + CreditScoreRangeLower)/2,
+                       breaks = creditBreaks, right = FALSE, 
+                       ordered_result = TRUE))
+pld$CreditHistoryLength <- as.double.difftime(pld$LoanOriginationDate - pld$FirstRecordedCreditLine)/365;
+pld$CreditLoanRatio <- pld$AvailableBankcardCredit/pld$LoanOriginalAmount
+```
+
+# Univariate Plots Section
+
+```{r Number of loans per month}
+ggplot(data = pld, aes(x = LoanOriginationDate)) +
+  geom_histogram(binwidth = 30) +
+  ylab('Loans per month')
+```
+
+The plot above show the histogram of loan start date. using a bin width of 30 would approximately give us the number of loans started each month. there is a gap around 2009 and number of loans start to increase again. I am not sure if data is representative of overall financial market. Possibly the increased number of loans might be due increased bussiness by Prosper rather than overall increase in loan requests.
+
+> The information for loans originated prior to July 2009 is different than loans originated after July 2009. To keep the analysis consistent, I have decided to only consider loans origianted after July 2009. 
+
+```{r data subset}
+pldn <- subset(pld, LoanOriginationDate > as.Date('2009-06-01'))
+```
+
+```{r Total loans}
+table(pldn$LoanStatus)
+```
+
+The table above shows the number of loans in various stages
+
+
+```{r Loan amount distribution}
+ggplot(data = pldn, aes(x = LoanOriginalAmount)) +
+  geom_histogram()
+ggplot(data = pldn, aes(x = LoanOriginalAmount)) +
+  geom_histogram(bins = 15) + 
+  scale_x_log10(breaks = c(1000, 3000, 10000, 30000))
+summary(pldn$LoanOriginalAmount)
+```
+
+The loan amounts distribution is positively skewed. However, if we use a log scale for the x axis, the histogram show a normal distribution. Note that most loans are exact values and the distribution shows peaks at common loan values of $4000, $10000, and $15000. the smallest loan is $1,000 and largest loan is $35,000
+
+**Loan term**  
+
+```{r Loan Term}
+table(pldn$Term)
+
+```
+
+The loans are mostly for 36 months with some loans for 60 months and a samll number of loans are 12 months long.
+
+
+```{r Borrower APR}
+ggplot(data = pldn, aes(x = BorrowerAPR*100)) +
+  geom_histogram()
+summary(pldn$BorrowerAPR*100)
+```
+
+The figure above shows the distribution of Annual Percentage Rate (APR)  for the loans. The original number was in rate rather than percentage, so I multiplied it by 100 to be easier to comprehend.
+
+```{r MonthlyLoanPayment}
+ggplot(data = pldn, aes(x = MonthlyLoanPayment)) +
+  geom_histogram()
+```
+
+Unsurprisingly, monthly payments follow the same pattern as the original loan amount. 
+
+```{r StatedMonthlyIncome}
+ggplot(data = pldn, aes(x = StatedMonthlyIncome)) +
+  geom_histogram() +
+  xlim(0, 10000)
+summary(pldn$StatedMonthlyIncome)
+```
+
+The monthly income of borrowers vary with a median of 5000 While the maximum recorded monthly income is $1,750,000, it is most probably a mistake (I cannot think someone with that much money would get a $10,000 loan), and most incomes are less than $10,000 a month. Stated monthly income is provided by the borrower, so its reliability is not clear. 
+
+```{r DebtToIncomeRatio}
+ggplot(data = pldn, aes(x = DebtToIncomeRatio)) +
+  geom_histogram() +
+  xlim(0, 1)
+summary(pldn$DebtToIncomeRatio)
+```
+
+The average debt to income ratio is around 0.25, meaning borrowers generally carry a quarter of their income as debt. While 75% of borrowers have debt to income ratio of lower than 0.32, some borrowers have debt to income ratio of close to 1. A small number of borrowers have reported debt to income ratio of 10.01 which in fact means the actual debt to income ratio is greater than 10.
+
+
+```{r Credit Score}
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper)) +
+  geom_histogram(binwidth = 20) +
+  xlim(400, 900)
+summary(pldn$CreditScoreRangeUpper)
+```
+
+In the dataset only the credit score bucket is reported, with the lower and upper range in separate variables. Here the histogram is for the upper range of the individauls credit score. A few samples with credit score of zero are trimmed from the graph. overall, we see a normal distibution for the credit score. 
+
+```{r Credit Grade}
+ggplot(data = pldn, aes(x = ProsperRating..Alpha.)) +
+  geom_bar()
+
+# pld$CreditGradeCombined = ifelse(is.na(pld$CreditGrade), 
+#                                  pld$ProsperRating..Alpha.,
+#                                  pld$CreditGrade)
+# ggplot(data = pld, aes(x = CreditGradeCombined)) +
+#   geom_bar()
+
+```
+
+The graphs above shows the distribution of the borrower's credit grade. Overall, average credit grades have a higher proportion.
+
+**Loan purpose**
+```{r ListingCategory}
+table(pldn$ListingCategory)
+```
+
+This variable is the category defined by the borrower as the reason for the loan. By far, most loans are for debt consolidation (probably credit card debt). Home improvement and business are two other most common reasons for borrowing money. 
+
+```{r APR faceted by credit grade}
+ggplot(data = pldn, aes(x = BorrowerAPR)) +
+  geom_histogram() +
+  facet_wrap(~ ProsperRating..Alpha.)
+```
+
+The graphs above show the loan APR broken into various graphs based on the borrowers credit grade. It is clear that borrower with better credit grade (AA>A>B>C>F>E>HR) are getting loans with lower APR.
+
+```{r Credit Score faceted by credit grade}
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper)) +
+  geom_histogram() +
+  geom_histogram(binwidth = 20) +
+  xlim(400, 900) +
+  facet_wrap(~ ProsperRating..Alpha.)
+```
+
+The graph above present the credit score distribtion for various credit grades. While borrowers with higher credit grades generally have higher credit score, it seems credit score alone does not define the credit grade of the borrower.
+
+# Univariate Analysis
+## What is the structure of your dataset?
+There are 113937 observations each having 81 variables describing a loan. Some varaibles describe the loan (LoanOriginalAmount, LoanOriginationDate, Term, BorrowerAPR, MonthlyLoanPayment, etc.). There are varaibles describing the borrower condition provided by borrower such as ListingCategory, StatedMonthlyIncome, Occupation, etc. Majority of the variables describe the credit status and history of the borrower (CurrentCreditLines, TotalCreditLinespast7years, DelinquenciesLast7Years, RevolvingCreditBalance, etc.). These variables define the risk associated with the borrower and possbiliy define the credit score (CreditScoreRangeUpper and CreditScoreRangeLower) of the borrower.
+
+There are 4 type of variables in the dataset:
+- date variables, these variable were convert to R Date structure using as.Date function 
+- numbers including the dollar amounts, rates, and integers
+- factors for variables such as CreditGrade, Occupation, IncomeRange, as well as boolean variables. 
+- Unique IDs that can be integers or sequence of alphanumerics
+
+It is worth noting that almost all variables are missing some samples. However, the number of missing variables are insignificant comapred to total observations and will not affect the integrity of the conclusions. 
+
+## What is/are the main feature(s) of interest in your dataset?
+The main interest is to identify what affects APR. It is clear that CreditGrade and APR are directly related, but it would interesting to see if they have a one-to-one relation or not. And how CreditGrade can be calculated from the history. 
+
+## What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+Besides the Creditgrade, I would like to investigatet if any of the following impact the APR: income, loan purpose, loan date, loan amount, occupation. 
+I would also like to see what aspect of the credit history impacts the creditgrade the most. The variables of interest are: IsBorrowerHomeowner, FirstRecordedCreditLine, CurrentCreditLines, OpenRevolvingAccounts, OpenRevolvingMonthlyPayment, RevolvingCreditBalance, DebtToIncomeRatio, and BankcardUtilization. 
+
+## Did you create any new variables from existing variables in the dataset?
+I created a new variable 'CreditHistoryLength' which is the time difference between loan date and first credit line in years.  
+I added anothe variable, the 'CreditLoanRatio' which is the ratio between AvailableBankcardCredit and LoanOriginalAmount.  
+I also created a new variable which was basically the actual name of the loan category instead of the integer number in the dataset.
+
+## Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+Some variables such as CreditGrade and IncomeRange that are expected to have ordered factors did not have proper ordering so I changed the order of factors.  
+Also the dates variables were imported as strings into a factor. They needed to be changed to R date varaible to be work effectively. I used the as.Date function to change them. The time of day part of the variables were ignored.  
+The loan amount distribution is positively skewed, and log-transforming the price proved to show the normal distribution in loan prices.
+
+# Bivariate Plots Section
+```{r Matrix plots}
+pldn.sub <- 
+  subset(pldn, 
+         select = c('BorrowerAPR', 'ProsperRating..Alpha.', 
+                    'CurrentCreditLines', 'CurrentDelinquencies',
+                    'CreditScoreRangeUpper', 'BankcardUtilization',
+                    'LoanOriginalAmount', 'LoanOriginationDate'))
+
+ggpairs(pldn.sub, 
+        lower = list(continuous = wrap("points", shape = I('.'))), 
+        upper = list(combo = wrap("box", outlier.shape = I('.'))))
+```
+
+The plots above show the relation between select variables. the first row show the relation between APR and other variables. The impact of credit rating on APR is very clear. Also there considerable correlation between APR and credit score, loan amount, as well as bankcard utilization.  
+Looking at credit rating and loan amount, it seems people with lower credit rating only qualified for smaller loans. Also loan amounts seemed to have generally increased over years. This might be related to prosper bussiness growth rather than borrowers demand for larger loans.  
+the relation between APR and credit rating and other variables need to examined in more details. 
+
+```{r APR and Prosper rating}
+ggplot(data = pldn, aes(x = ProsperRating..Alpha., y = BorrowerAPR)) +
+  geom_boxplot() 
+pldn %>%
+  group_by(ProsperRating..Alpha.) %>%
+  summarise(APR.mean = mean(BorrowerAPR),
+            APR.median = median(BorrowerAPR),
+            n = n())
+```
+
+As suspected previously, the main varaible describing the APR is the ProsperRating. This variable seems to be one that Prosper is using to choose the APR for its costumers. Therefore, it is likely not avaiable before starting a loan. 
+
+```{r APR and credit score}
+cor.test(pldn$CreditScoreRangeUpper, pldn$BorrowerAPR)
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
+  geom_point(alpha = 1/20, position = position_jitter(height = 0)) 
+```
+
+As expected, there is strong correlation between credit score and the APR. As the credit score decreases the APR increases.
+
+
+```{r APR and date}
+ggplot(data = pldn, aes(x = LoanOriginationDate, y = BorrowerAPR)) +
+  geom_point(alpha = 1/20)
+```
+
+Over the years, the maximum loan interest rate have slightly decresed, but overall interest rates does not seem to be affected significantly by time.
+
+```{r APR and loan amount}
+ggplot(data = pldn, aes(x = LoanOriginalAmount, y = BorrowerAPR)) +
+  geom_point(alpha = 1/20, position = position_jitter()) 
+```
+
+Higher loan amounts seem to have lower APR. However, it is unlikely that the APR is lower due to larger loan. I suspect people with lower credit score do not qualify for larger loans; therfore, we do not see large loans with high APR. And generally poeple with better credit score (which would get lower APR) can get the larger loans.
+
+```{r APR and current credit lines}
+cor.test(pldn$CurrentCreditLines, pldn$BorrowerAPR)
+ggplot(data = pldn, aes(x = CurrentCreditLines, y = BorrowerAPR)) +
+  geom_point(alpha = 1/20, position = position_jitter()) +
+  xlim(-1, 40)
+```
+
+It seems there is a weak relation betweem number of credit lines and APR. and poeple with higher number of credit lines have lower APR and people with higher APR have few credit lines. Poeple who have access to credit line would only consider then loan if APR is lower than their credit line. However, poeple who do not have creditline have no choice but to get the loan at high APR. 
+
+```{r APR and AvailableBankcardCredit}
+cor.test(pldn$AvailableBankcardCredit, pldn$BorrowerAPR)
+ggplot(data = pldn, aes(x = (AvailableBankcardCredit + 1), y = BorrowerAPR)) +
+  geom_point(alpha = 1/20, position = position_jitter()) +
+  scale_x_log10()
+```
+
+Similar to having credit lines, someone who has access to credit through bank card (credit card I presume) would likely choose a loan only if the rate is favourable. For individuals without access to credit through bank card, they have no choice but to accept high APR loans.
+
+```{r LoanOriginalAmount and AvailableBankcardCredit}
+cor.test(pldn$AvailableBankcardCredit, pldn$LoanOriginalAmount)
+ggplot(data = pldn, aes(x = (AvailableBankcardCredit + 1), y = LoanOriginalAmount)) +
+  geom_point(alpha = 1/20, position = position_jitter()) +
+  geom_abline(slope = 1, aes(color = 'red')) +
+  scale_x_log10() +
+  scale_y_log10()
+```
+
+Poeple who have access to more credit thorugh bank card usually take larger loan, likely they use their bank card for smaller loans. 
+
+```{r APR and AvailableBankcardCredit two plot}
+p1 <- ggplot(data = subset(pldn, AvailableBankcardCredit >= LoanOriginalAmount),
+             aes(x = BorrowerAPR)) +
+  geom_histogram() +
+  ggtitle('Loan less than avaialble bankcredit ')
+p2 <- ggplot(data = subset(pldn, AvailableBankcardCredit < LoanOriginalAmount),
+             aes(x = BorrowerAPR)) +
+  geom_histogram() +
+  ggtitle('Loan higher than avaialble bankcredit ')
+
+grid.arrange(p1,p2)
+```
+
+Looking at the histogram of the APR for the two cases (loans higher and lower than avaialble bank card credit), it is clear that average APR is higher when poeple are getting loans higher than their avialble bank card credit. 
+
+```{r APR and BankcardUtilization}
+cor.test(pldn$BankcardUtilization, pldn$BorrowerAPR)
+ggplot(data = pldn, aes(x = BankcardUtilization, y = BorrowerAPR)) +
+  geom_point(alpha = 1/20, position = position_jitter()) +
+  xlim(-.1, 1.1)
+```
+
+Besides having credit available through bank card, the amount that their bank card is utilized also matter for deciding to use the bank card or get a loan. poeple with higher bank card utilization have no choice but to accept higher APR.
+
+```{r APR and 6 month inquiries}
+cor.test(pldn$InquiriesLast6Months, pldn$BorrowerAPR)
+ggplot(data = pldn, aes(x = InquiriesLast6Months, y = BorrowerAPR)) +
+  geom_point(alpha = 1/20, position = position_jitter()) +
+  xlim(-1, 15)
+```
+
+There is some correlation between recent inquiries and APR. The likely reasoning is that more inquiries shows that borrower had been declined from other loans and has not other options. 
+
+```{r APR and TradesNeverDelinquent..percentage.}
+cor.test(pldn$TradesNeverDelinquent..percentage., pldn$BorrowerAPR)
+ggplot(data = pldn, aes(x = (TradesNeverDelinquent..percentage. * 100), y = BorrowerAPR)) +
+  geom_point(alpha = 1/20, position = position_jitter())
+```
+
+There is a considerable correlation between percentage of TradesNeverDelinquent and APR. People who have a good track record of paying of their debts are more likely to get better APR. 
+
+```{r APR and credit history}
+cor.test(pldn$CreditHistoryLength, pldn$BorrowerAPR)
+ggplot(data = pldn, aes(x = (CreditHistoryLength), y = BorrowerAPR)) +
+  geom_point(alpha = 1/20, position = position_jitter()) +
+  scale_x_log10()
+```
+
+There is not much correlation between credit history length and APR. This is because most individuals have have long credit history. But, focusing on individuals with very short credit history, we see that short credit histry result in higher APR.
+
+#Bivariate Analysis
+##Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+My aim is to describe the APR based on various variables describing the credit history. Although ProsperRating significantly describes the APR, I expect it not be available for a new individual before getting a loan. 
+From the variables expected to be openly available, the most correlation is between APR and credit score. Higher credit score results in lower APR which is reasonable. However, the credit score alone does not represent all the variation in APR.  
+Other variables such as AvaialbleBankCardCredit and BankCardUtilization will define the borower's access to other sources of credit and impacts their APR.  
+The loan amount and loan starting date does not seem to impact the APR. Although the APR for larger loans is lower on average, it is unlikely that asking for bigger loan would result in lower APR. I suspect the lower APR is the result of those individual having a better credit history.  
+Other variables such as delinquencies and credit score inquiries also have a negative impact on the APR. 
+
+##Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+On average loan amount seems to be consistent with  the credit individuals have access through bank credit card. poeple who have more credit through bankcard get bigger loans from Prosepr. Additionaly, when the loan amount is lower than the credit avaialble through bankcard for someone, that individual tend to get better APR compared to when the loan amount is higher than credit available through bankcard. 
+
+##What was the strongest relationship you found?
+The strongest relationship is between APR and ProsperRating, with APR decreasing with higher ProsperRating. 
+
+#Multivariate Plots Section
+My aim to describe the APR from different variable avaialble trough credit history. We identified that credit score is most significant factor describing the APR. now we look if we can identify other variables that describe the APR variation within similar credit scores.  
+Most variables in the porcess are continuous, however, it is hard to see the variation in the color using conitnuous variables. I used the 'cut' function to break the continuous variables into facotrs and see the color changes easier.
+
+
+```{r APR and credit score and CurrentCreditLines}
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
+  geom_point(aes(color = cut(CurrentCreditLines, 
+                             c(0, 5, 10, 15, 100),
+                             right = FALSE)), 
+             position = position_jitter(height = 0)) +
+  scale_color_brewer(type = 'div',
+                     guide = guide_legend(title = 'CurrentCreditLines'))
+```
+
+The number of credit lines does not describe the variations in the APR within similar CreditScoreRange values. 
+
+```{r APR and credit score and BankcardUtiliation}
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
+  geom_point(aes(color = cut(BankcardUtilization, 
+                             c(0, 0.3, 0.6, 0.9, 10), 
+                             right = FALSE)), 
+             position = position_jitter(height = 0)) +
+  scale_color_brewer(type = 'qual',
+                     guide = guide_legend(title = 'BankcardUtilization'))
+```
+
+We knew before that Poeple with lower bankcard utilization have higher credit score. This is again very dominant in this graph. However, within same CreditScoreRange, we can see that poeple with lower BankcardUtilization generally have lower APR. 
+
+```{r APR and credit score and loan to avaialble credit}
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
+  geom_point(aes(color = cut(CreditLoanRatio, 
+                             c(0,0.15,1,2,300),
+                             right = FALSE)), 
+             position = position_jitter(height = 0)) +
+  scale_color_brewer(type = 'div',
+                     guide = guide_legend(title = 'CreditLoanRatio'))
+```
+
+Again, there is significant correlation between CreditLoanRatio and CreditScoreRange, i.e. people with higher CreditScoreRange have higher CreditLoanRatio. The impact of CreditLoanRatio on APR is not very clear for poeple with very high or very low credit scores. However, for people with average credit score (around 740 to 800), we can see that higher CreditLoanRatio generally yields to lower APR. 
+
+```{r APR and credit score and AvailableBankcardCredit }
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
+  geom_point(aes(color = cut(AvailableBankcardCredit, 
+                             c(0,1e3,5e3,1.4e4,1e6),
+                             right = FALSE)), 
+             position = position_jitter(height = 0)) +
+  scale_color_brewer(type = 'div',
+                     guide = guide_legend(title = 'AvailableBankcardCredit'))
+```
+
+The impact of AvailableBankcardCredit is very similar to CreditLoanRatio. Given that the loans amounts follow a normal distribution, this is expected. However, it is not clear which one is the primary feature driving the APR. 
+
+```{r APR and credit score and TradesNeverDelinquent..percentage. }
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
+  geom_point(aes(color = cut(TradesNeverDelinquent..percentage.*100, 
+                             c(0,80,90,98,100))), 
+             position = position_jitter(height = 0)) +
+  scale_color_brewer(type = 'div',
+                     guide = guide_legend(title = 'TradesNeverDelinquent %'))
+```
+
+Contrary to my expectations, the percentage of TradesNeverDelinquent does not seem to have much impact on the APR  wihtin similar CreditScoreRange. One explenation can be that all the impacts of TradesNeverDelinquent is already accounted for in CreditScoreRange. Therefore, it cannot describe any more variation in APR.
+
+
+```{r APR and credit score and InquiriesLast6Months  }
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
+  geom_point(aes(color = cut(InquiriesLast6Months, 
+                             c(0,1,2,30),
+                             right = FALSE)), 
+             position = position_jitter(height = 0)) +
+  scale_color_brewer(type = 'qual',
+                     guide = guide_legend(title = 'InquiriesLast6Months'))
+```
+
+Looking at the impact of InquiriesLast6Months on APR, we can see that poeple who have 0 or 1 Inquiry in last 6 month on average get better APR compared to poeple with more inquiries in the same CreditScoreRange. 
+
+```{r APR and credit score and DebtToIncomeRatio  }
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
+  geom_point(aes(color = cut(DebtToIncomeRatio, 
+                             c(0,0.15,0.22,0.3,11),
+                             right = FALSE)), 
+             position = position_jitter(height = 0)) +
+  scale_color_brewer(type = 'qual',
+                     guide = guide_legend(title = 'DebtToIncomeRatio'))
+```
+
+From the graph above we can see that DebtToIncomeRatio partially impact the APR. Within same CreditScoreRange, poeple with lower DebtToIncomeRatio recieve lower APR for their loans.
+
+
+#Multivariate Analysis
+##Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+When I looked at at TradesNeverDelinquent versus APR, there was considerable corelation between the two. However, this correlation seems to mostly camptured by credit score, i.e. within same credit score range, TradesNeverDelinquent cannot describe the APR. 
+
+On the Other hand, AvailableBankcardCredit significantly impact APR, even for people with same credit range. Same pattern also happended for credit to loan ratio. 
+
+Another two variable that showed significant impact on APR were InquiriesLast6Months and DebtToIncomeRatio. When lower, both would result in lower APR for the customers.  
+
+#Final Plots and Summary
+
+##Plot One
+```{r Plot One)}
+ggplot(data = pldn, aes(x = LoanOriginalAmount)) +
+  geom_histogram(bins = 10) + 
+  geom_histogram(bins = 100, fill = 'orange') +
+  scale_x_log10(breaks = c(1000, 4000, 10000, 15000, 30000)) +
+  xlab('Loan Original Amount $') +
+  ylab('Number of Loans') +
+  ggtitle('Distribution of loan amount')
+```
+##Description One  
+
+Here we have the distrbituion of loan amounts. If we use large bins with a logarithmic X axis scale, we see that the loans follow a normal distribution.  However, when we use smaller bins, we see another phenomenon. Although overall loans are normally distributed, loans are generally round numbers, with loan amounts of 4000, 10000, and 15000 bein the most common. 
+
+##Plot Two  
+
+```{r Plot Two}
+ggplot(data = subset(pldn, ProsperRating..Alpha. != 'NA'),
+                     aes(x = ProsperRating..Alpha., y = BorrowerAPR)) +
+  geom_boxplot(aes(color = ProsperRating..Alpha.)) +
+  scale_color_brewer(type = 'seq', palette = 'Spectral',
+      guide = guide_legend(title = 'Prosper rating', reverse = TRUE)) +
+  xlab('Prosper rating') +
+  ylab('Borrower APR') +
+  ggtitle('The loans APR variation based on Prosper rating of the customer')
+```
+##Description Two  
+
+This plot shows the the loan's APR with respect to the rating that was given to borrower by prosper. There is a direct and strong realtionship between the rating and APR. Furthermore, as the ratings worsen the APR also have more variation.
+
+##Plot Three  
+
+```{r Plot Three}
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
+  geom_point(aes(color = cut(AvailableBankcardCredit, 
+                             c(0,1e3,5e3,1.4e4,1e6),
+                             right = FALSE)),
+             position = position_jitter(height = 0)) +
+  scale_color_brewer(type = 'seq', palette = 'PuBuGn',
+                     guide = guide_legend(title = 'Available Bankcard Credit')) +
+  xlab('Upper Value of Credit Score Range') +
+  ylab('Borrower APR') +
+  ggtitle('Impact of credit to loan ratio on APR')
+```
+
+##Description Three  
+
+The plot above depicts loans APR as a function of borrowers credit score. The points are colored based on the credit available to the borrower through bankcards. The first conclusion is that higher credit scores yield a lower loan APR for the borrower. Second, poeple with higher credit score have more access to credit through bankcards. Third, for people with similar credit score, those who have access to more credit through bankcards can obtain a loan with lower APR. 
+
+#Reflection
+
+We looked at the loan data from Prosper. There are more than 110,000 loan data in this dataset. However, parts of data features were different before and after July 2009. To ensure a consistent analysis, only data for loans after July 2009 was used in this report. I needed to condition some of variables such as date variables and factor variables to work easier with them. I started by exploring by some interesting features such as loan amount, credit score, APR, prosper rating, etc. Eventually, I decided to look into how to identify the relationship between APR and other features, i.e. how Prosper decides what APR a borrower gets based on their history and current status. 
+
+The most correlation was between APR and the rating that Prosper assigns to borrowers. However, I decided not to use Prosper rating, as I suspected it is a variable that prosper calculates and likely indivdiduals do not have access to it. Besides prosper rating, the feature that described the APR the most was the credit score. On average, higher credit score coresponds to lower APR. However, credit score does not completely describe the APR variation. Other variables that I found to be impacting the APR were: DebtToIncomeRatio, InquiriesLast6Months, AvailableBankcardCredit, and BankcardUtilization. 
+
+Contrary to my expectation, I coudld not find a clear impact from the following variables on the APR: CurrentCreditLines, TradesNeverDelinquent, and LoanOriginationDate. I did not try to isolate the impact of other variables before assessing these varaibles. So it is possible that their impact is masked by variation due to other features.
