@@ -115,7 +115,7 @@ table(pldn$Term)
 
 ```
 
-The loans are mostly for 36 months with some loans for 60 months and a samll number of loans are 12 months long.
+The loans are mostly for 36 months with some loans for 60 months and a small number of loans are 12 months long.
 
 
 ```{r Borrower APR}
@@ -154,12 +154,11 @@ The average debt to income ratio is around 0.25, meaning borrowers generally car
 
 ```{r Credit Score}
 ggplot(data = pldn, aes(x = CreditScoreRangeUpper)) +
-  geom_histogram(binwidth = 20) +
-  xlim(400, 900)
+  geom_histogram(binwidth = 20)
 summary(pldn$CreditScoreRangeUpper)
 ```
 
-In the dataset only the credit score bucket is reported, with the lower and upper range in separate variables. Here the histogram is for the upper range of the individauls credit score. A few samples with credit score of zero are trimmed from the graph. overall, we see a normal distibution for the credit score. 
+In the dataset only the credit score bucket is reported, with the lower and upper range in separate variables. Here the histogram is for the upper range of the individauls credit score. Overall, we see a normal distibution for the credit score with a slight positive skew.
 
 ```{r Credit Grade}
 ggplot(data = pldn, aes(x = ProsperRating..Alpha.)) +
@@ -192,9 +191,7 @@ The graphs above show the loan APR broken into various graphs based on the borro
 
 ```{r Credit Score faceted by credit grade}
 ggplot(data = pldn, aes(x = CreditScoreRangeUpper)) +
-  geom_histogram() +
   geom_histogram(binwidth = 20) +
-  xlim(400, 900) +
   facet_wrap(~ ProsperRating..Alpha.)
 ```
 
@@ -202,7 +199,7 @@ The graph above present the credit score distribtion for various credit grades. 
 
 # Univariate Analysis
 ## What is the structure of your dataset?
-There are 113937 observations each having 81 variables describing a loan. Some varaibles describe the loan (LoanOriginalAmount, LoanOriginationDate, Term, BorrowerAPR, MonthlyLoanPayment, etc.). There are varaibles describing the borrower condition provided by borrower such as ListingCategory, StatedMonthlyIncome, Occupation, etc. Majority of the variables describe the credit status and history of the borrower (CurrentCreditLines, TotalCreditLinespast7years, DelinquenciesLast7Years, RevolvingCreditBalance, etc.). These variables define the risk associated with the borrower and possbiliy define the credit score (CreditScoreRangeUpper and CreditScoreRangeLower) of the borrower.
+There are 113937 observations each having 81 variables describing a loan. To ensure data consistency I remove loan riginated before July 2009, resulting in around 85,000 samples. Some varaibles describe the loan (LoanOriginalAmount, LoanOriginationDate, Term, BorrowerAPR, MonthlyLoanPayment, etc.). There are varaibles describing the borrower condition provided by borrower such as ListingCategory, StatedMonthlyIncome, Occupation, etc. Majority of the variables describe the credit status and history of the borrower (CurrentCreditLines, TotalCreditLinespast7years, DelinquenciesLast7Years, RevolvingCreditBalance, etc.). These variables define the risk associated with the borrower and possbiliy define the credit score (CreditScoreRangeUpper and CreditScoreRangeLower) of the borrower.
 
 There are 4 type of variables in the dataset:
 - date variables, these variable were convert to R Date structure using as.Date function 
