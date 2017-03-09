@@ -77,8 +77,16 @@ pld$CreditLoanRatio <- pld$AvailableBankcardCredit/pld$LoanOriginalAmount
 # Univariate Plots Section
 
 ```{r Number of loans per month}
-ggplot(data = pld, aes(x = LoanOriginationDate)) +
-  geom_histogram(binwidth = 30) +
+
+univar_plot <- function(varname, binwidth, bins) {
+  if (hasArg(binwidth))
+    return(ggplot(data = pld, aes_string(x = varname)) + geom_histogram(binwidth = binwidth))
+  if (hasArg(bins))
+    return(ggplot(data = pld, aes_string(x = varname)) + geom_histogram(bins = bins))
+  return(ggplot(data = pld, aes_string(x = varname)) + geom_histogram())
+}
+
+univar_plot('LoanOriginationDate', binwidth = 30) +
   ylab('Loans per month')
 ```
 
@@ -98,10 +106,8 @@ The table above shows the number of loans in various stages
 
 
 ```{r Loan amount distribution}
-ggplot(data = pldn, aes(x = LoanOriginalAmount)) +
-  geom_histogram()
-ggplot(data = pldn, aes(x = LoanOriginalAmount)) +
-  geom_histogram(bins = 15) + 
+univar_plot('LoanOriginalAmount')
+univar_plot('LoanOriginalAmount', bins = 15) +
   scale_x_log10(breaks = c(1000, 3000, 10000, 30000))
 summary(pldn$LoanOriginalAmount)
 ```
@@ -119,23 +125,20 @@ The loans are mostly for 36 months with some loans for 60 months and a small num
 
 
 ```{r Borrower APR}
-ggplot(data = pldn, aes(x = BorrowerAPR*100)) +
-  geom_histogram()
+univar_plot('BorrowerAPR*100')
 summary(pldn$BorrowerAPR*100)
 ```
 
 The figure above shows the distribution of Annual Percentage Rate (APR)  for the loans. The original number was in rate rather than percentage, so I multiplied it by 100 to be easier to comprehend.
 
 ```{r MonthlyLoanPayment}
-ggplot(data = pldn, aes(x = MonthlyLoanPayment)) +
-  geom_histogram()
+univar_plot('MonthlyLoanPayment')
 ```
 
 Unsurprisingly, monthly payments follow the same pattern as the original loan amount. 
 
 ```{r StatedMonthlyIncome}
-ggplot(data = pldn, aes(x = StatedMonthlyIncome)) +
-  geom_histogram() +
+univar_plot('StatedMonthlyIncome') +
   xlim(0, 10000)
 summary(pldn$StatedMonthlyIncome)
 ```
@@ -143,8 +146,7 @@ summary(pldn$StatedMonthlyIncome)
 The monthly income of borrowers vary with a median of 5000 While the maximum recorded monthly income is $1,750,000, it is most probably a mistake (I cannot think someone with that much money would get a $10,000 loan), and most incomes are less than $10,000 a month. Stated monthly income is provided by the borrower, so its reliability is not clear. 
 
 ```{r DebtToIncomeRatio}
-ggplot(data = pldn, aes(x = DebtToIncomeRatio)) +
-  geom_histogram() +
+univar_plot('DebtToIncomeRatio') + 
   xlim(0, 1)
 summary(pldn$DebtToIncomeRatio)
 ```
@@ -153,8 +155,7 @@ The average debt to income ratio is around 0.25, meaning borrowers generally car
 
 
 ```{r Credit Score}
-ggplot(data = pldn, aes(x = CreditScoreRangeUpper)) +
-  geom_histogram(binwidth = 20)
+univar_plot('CreditScoreRangeUpper', binwidth = 20)
 summary(pldn$CreditScoreRangeUpper)
 ```
 
@@ -181,21 +182,6 @@ table(pldn$ListingCategory)
 
 This variable is the category defined by the borrower as the reason for the loan. By far, most loans are for debt consolidation (probably credit card debt). Home improvement and business are two other most common reasons for borrowing money. 
 
-```{r APR faceted by credit grade}
-ggplot(data = pldn, aes(x = BorrowerAPR)) +
-  geom_histogram() +
-  facet_wrap(~ ProsperRating..Alpha.)
-```
-
-The graphs above show the loan APR broken into various graphs based on the borrowers credit grade. It is clear that borrower with better credit grade (AA>A>B>C>F>E>HR) are getting loans with lower APR.
-
-```{r Credit Score faceted by credit grade}
-ggplot(data = pldn, aes(x = CreditScoreRangeUpper)) +
-  geom_histogram(binwidth = 20) +
-  facet_wrap(~ ProsperRating..Alpha.)
-```
-
-The graph above present the credit score distribtion for various credit grades. While borrowers with higher credit grades generally have higher credit score, it seems credit score alone does not define the credit grade of the borrower.
 
 # Univariate Analysis
 ## What is the structure of your dataset?
@@ -256,6 +242,22 @@ pldn %>%
 
 As suspected previously, the main varaible describing the APR is the ProsperRating. This variable seems to be one that Prosper is using to choose the APR for its costumers. Therefore, it is likely not avaiable before starting a loan. 
 
+```{r APR faceted by credit grade}
+ggplot(data = pldn, aes(x = BorrowerAPR)) +
+  geom_histogram() +
+  facet_wrap(~ ProsperRating..Alpha.)
+```
+
+The graphs above show the loan APR broken into various graphs based on the borrowers credit grade. In this graph, we can see more detail about the APR distribution based on the credit grade. The distirbutions validate the concludions made from the previous boxplots. It is also clear that generally APR has lower variance for people with better credit grade.
+
+```{r Credit Score faceted by credit grade}
+ggplot(data = pldn, aes(x = CreditScoreRangeUpper)) +
+  geom_histogram(binwidth = 20) +
+  facet_wrap(~ ProsperRating..Alpha.)
+```
+
+The graph above present the credit score distribtion for various credit grades. While borrowers with higher credit grades generally have higher credit score, it seems credit score alone does not define the credit grade of the borrower.
+
 ```{r APR and credit score}
 cor.test(pldn$CreditScoreRangeUpper, pldn$BorrowerAPR)
 ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
@@ -292,7 +294,7 @@ It seems there is a weak relation betweem number of credit lines and APR. and po
 cor.test(pldn$AvailableBankcardCredit, pldn$BorrowerAPR)
 ggplot(data = pldn, aes(x = (AvailableBankcardCredit + 1), y = BorrowerAPR)) +
   geom_point(alpha = 1/20, position = position_jitter()) +
-  scale_x_log10()
+  scale_x_log10(breaks = c(10, 100, 1000, 10000, 100000))
 ```
 
 Similar to having credit lines, someone who has access to credit through bank card (credit card I presume) would likely choose a loan only if the rate is favourable. For individuals without access to credit through bank card, they have no choice but to accept high APR loans.
@@ -302,7 +304,7 @@ cor.test(pldn$AvailableBankcardCredit, pldn$LoanOriginalAmount)
 ggplot(data = pldn, aes(x = (AvailableBankcardCredit + 1), y = LoanOriginalAmount)) +
   geom_point(alpha = 1/20, position = position_jitter()) +
   geom_abline(slope = 1, aes(color = 'red')) +
-  scale_x_log10() +
+  scale_x_log10(breaks = c(10, 100, 1000, 10000, 100000)) +
   scale_y_log10()
 ```
 
@@ -353,7 +355,7 @@ There is a considerable correlation between percentage of TradesNeverDelinquent 
 cor.test(pldn$CreditHistoryLength, pldn$BorrowerAPR)
 ggplot(data = pldn, aes(x = (CreditHistoryLength), y = BorrowerAPR)) +
   geom_point(alpha = 1/20, position = position_jitter()) +
-  scale_x_log10()
+  scale_x_log10(breaks = c(1, 3, 10, 30))
 ```
 
 There is not much correlation between credit history length and APR. This is because most individuals have have long credit history. But, focusing on individuals with very short credit history, we see that short credit histry result in higher APR.
@@ -483,6 +485,7 @@ ggplot(data = pldn, aes(x = LoanOriginalAmount)) +
   ylab('Number of Loans') +
   ggtitle('Distribution of loan amount')
 ```
+
 ##Description One  
 
 Here we have the distrbituion of loan amounts. If we use large bins with a logarithmic X axis scale, we see that the loans follow a normal distribution.  However, when we use smaller bins, we see another phenomenon. Although overall loans are normally distributed, loans are generally round numbers, with loan amounts of 4000, 10000, and 15000 bein the most common. 
@@ -494,11 +497,12 @@ ggplot(data = subset(pldn, ProsperRating..Alpha. != 'NA'),
                      aes(x = ProsperRating..Alpha., y = BorrowerAPR)) +
   geom_boxplot(aes(color = ProsperRating..Alpha.)) +
   scale_color_brewer(type = 'seq', palette = 'Spectral',
-      guide = guide_legend(title = 'Prosper rating', reverse = TRUE)) +
+      guide = FALSE) +
   xlab('Prosper rating') +
   ylab('Borrower APR') +
   ggtitle('The loans APR variation based on Prosper rating of the customer')
 ```
+
 ##Description Two  
 
 This plot shows the the loan's APR with respect to the rating that was given to borrower by prosper. There is a direct and strong realtionship between the rating and APR. Furthermore, as the ratings worsen the APR also have more variation.
@@ -506,13 +510,18 @@ This plot shows the the loan's APR with respect to the rating that was given to 
 ##Plot Three  
 
 ```{r Plot Three}
+creditLevels <- cut(pldn$AvailableBankcardCredit,
+                   c(0,1000,5000,14000,1000000), right = FALSE)
+creditLevels <- factor(creditLevels,
+                       labels=c("[0, 1000)",
+                                "[1000, 5000)",
+                                "[5000, 14000)",
+                                "[14000, 1000000)"))
 ggplot(data = pldn, aes(x = CreditScoreRangeUpper, y = BorrowerAPR)) +
-  geom_point(aes(color = cut(AvailableBankcardCredit, 
-                             c(0,1e3,5e3,1.4e4,1e6),
-                             right = FALSE)),
+  geom_point(aes(color = creditLevels),
              position = position_jitter(height = 0)) +
   scale_color_brewer(type = 'seq', palette = 'PuBuGn',
-                     guide = guide_legend(title = 'Available Bankcard Credit')) +
+      guide = guide_legend(title = 'Available Bankcard Credit')) +
   xlab('Upper Value of Credit Score Range') +
   ylab('Borrower APR') +
   ggtitle('Impact of credit to loan ratio on APR')
